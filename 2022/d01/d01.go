@@ -18,7 +18,7 @@ func linesFromFile(p string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	res := make([]string, 1)
+	res := make([]string, 0)
 	for scanner.Scan() {
 		res = append(res, scanner.Text())
 	}
@@ -26,7 +26,7 @@ func linesFromFile(p string) ([]string, error) {
 }
 
 func weights(lines []string) ([]int, error) {
-	result := make([]int, 1)
+	result := make([]int, 0)
 	intermediateAcc := 0
 	for _, line := range lines {
 		lineInt, err := strconv.Atoi(line)
