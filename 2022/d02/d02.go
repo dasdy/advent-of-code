@@ -17,7 +17,7 @@ func linesFromFile(p string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	res := make([]string, 1)
+	res := make([]string, 0)
 	for scanner.Scan() {
 		res = append(res, scanner.Text())
 	}
@@ -165,4 +165,3 @@ func main() {
 	v, _ := linesFromFile("./input")
 	fmt.Println(pointsPerSet(v))
 }
-
