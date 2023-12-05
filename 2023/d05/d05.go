@@ -1,11 +1,10 @@
 package main
 
 import (
-	"encoding/json"
+	"advent-of-code/common"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -15,6 +14,14 @@ type Range struct {
 	DestStart   int
 	SourceStart int
 	Size        int
+}
+
+type RangeMap map[string][]Range
+type Ranges map[string]RangeMap
+
+type SeedRange struct {
+	Start int
+	Size  int
 }
 
 func parseRange(body string) (string, string, []Range) {
@@ -31,7 +38,7 @@ func parseRange(body string) (string, string, []Range) {
 			continue
 		}
 
-		itemsInts := intList(line)
+		itemsInts := aoc_common.IntList(line)
 		// fmt.Printf("Line: '%s', items: %v\n", line, items)
 		res = append(res, Range{from, to, itemsInts[0], itemsInts[1], itemsInts[2]})
 	}
@@ -40,23 +47,10 @@ func parseRange(body string) (string, string, []Range) {
 	return from, to, res
 }
 
-func intList(line string) []int {
-	items := strings.Split(line, " ")
-	itemsInts := make([]int, 0, 3)
-	for _, item := range items {
-		v, _ := strconv.Atoi(item)
-		itemsInts = append(itemsInts, v)
-	}
-	return itemsInts
-}
-
-type RangeMap map[string][]Range
-type Ranges map[string]RangeMap
-
 func parseFileInput(body string) ([]int, Ranges) {
 	items := strings.Split(body, "\n\n")
 	seeds := strings.TrimPrefix(items[0], "seeds: ")
-	seedsList := intList(seeds)
+	seedsList := aoc_common.IntList(seeds)
 
 	ranges := make(Ranges)
 	for _, item := range items[1:] {
@@ -74,17 +68,6 @@ func parseFileInput(body string) ([]int, Ranges) {
 	// fmt.Printf("Parsed all ranges: %s\n", pprint(ranges))
 
 	return seedsList, ranges
-}
-
-func pprint(v any) string {
-	rangesStr, _ := json.MarshalIndent(v, "", "  ")
-
-	return string(rangesStr)
-}
-func pprint1(v any) string {
-	rangesStr, _ := json.Marshal(v)
-
-	return string(rangesStr)
 }
 
 func part1(iseeds []int, ranges Ranges) int {
@@ -121,16 +104,7 @@ func part1(iseeds []int, ranges Ranges) int {
 
 	// fmt.Printf("Final places: %v\n", seeds)
 	// minimum spot
-	m := seeds[0]
-	for _, s := range seeds[1:] {
-		m = min(m, s)
-	}
-	return m
-}
-
-type SeedRange struct {
-	Start int
-	Size  int
+	return aoc_common.MinLst(seeds)
 }
 
 func intersect(amin int, asize int, bmin int, bsize int) *SeedRange {

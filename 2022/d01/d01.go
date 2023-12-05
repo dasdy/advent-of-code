@@ -1,29 +1,12 @@
 package main
 
 import (
-	"bufio"
+	aoc_common "advent-of-code/common"
 	"fmt"
 	"log"
-	"os"
 	"slices"
 	"strconv"
 )
-
-func linesFromFile(p string) ([]string, error) {
-	log.Println(os.Getwd())
-	file, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	res := make([]string, 0)
-	for scanner.Scan() {
-		res = append(res, scanner.Text())
-	}
-	return res, nil
-}
 
 func weights(lines []string) ([]int, error) {
 	result := make([]int, 0)
@@ -51,7 +34,7 @@ func topThree(weights []int) int {
 }
 
 func main() {
-	lines, err := (linesFromFile("./input1.txt"))
+	lines, err := aoc_common.LinesFromFile("./input1.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
