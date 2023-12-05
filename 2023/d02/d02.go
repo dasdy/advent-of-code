@@ -1,30 +1,13 @@
 package main
 
 import (
-	"bufio"
+	aoc_common "advent-of-code/common"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 )
-
-func linesFromFile(p string) ([]string, error) {
-	log.Println(os.Getwd())
-	file, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	res := make([]string, 0)
-	for scanner.Scan() {
-		res = append(res, scanner.Text())
-	}
-	return res, nil
-}
 
 func oneLine(line string) int {
 	re := regexp.MustCompile(`Game (\d+): (.+)`)
@@ -69,7 +52,7 @@ func sumAllLines(lines []string) int {
 }
 
 func main() {
-	lines, err := (linesFromFile("./input"))
+	lines, err := aoc_common.LinesFromFile("./input")
 	if err != nil {
 		log.Fatal(err)
 	}

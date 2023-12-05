@@ -1,28 +1,10 @@
 package main
 
 import (
-	"bufio"
+	aoc_common "advent-of-code/common"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 )
-
-func linesFromFile(p string) ([]string, error) {
-	log.Println(os.Getwd())
-	file, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	res := make([]string, 0)
-	for scanner.Scan() {
-		res = append(res, scanner.Text())
-	}
-	return res, nil
-}
 
 func linesToInts(lines []string) [][]int {
 	res := make([][]int, len(lines))
@@ -323,7 +305,7 @@ func leftVisibilityCounts(asInts [][]int) [][]int {
 }
 
 func main() {
-	lines, err := linesFromFile("./input")
+	lines, err := aoc_common.LinesFromFile("./input")
 	if err != nil {
 		panic("No input file")
 	}

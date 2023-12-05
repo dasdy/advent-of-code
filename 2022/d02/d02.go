@@ -1,28 +1,10 @@
 package main
 
 import (
-	"bufio"
+	aoc_common "advent-of-code/common"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 )
-
-func linesFromFile(p string) ([]string, error) {
-	log.Println(os.Getwd())
-	file, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	res := make([]string, 0)
-	for scanner.Scan() {
-		res = append(res, scanner.Text())
-	}
-	return res, nil
-}
 
 func pointsOneGame(round string) int {
 	outcome := 0
@@ -162,6 +144,6 @@ func main() {
 	fmt.Println(pointsOneGamePt2("B Z"))
 	fmt.Println(pointsOneGamePt2("C Z"))
 
-	v, _ := linesFromFile("./input")
+	v, _ := aoc_common.LinesFromFile("./input")
 	fmt.Println(pointsPerSet(v))
 }
