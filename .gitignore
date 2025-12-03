@@ -20,5 +20,7 @@
 # Go workspace file
 go.work
 
+input*
+inp_*
 node_modules
 .ipynb_checkpoints
