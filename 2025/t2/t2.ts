@@ -3,6 +3,7 @@ import * as fs from "fs";
 const input1 = fs.readFileSync("input_base", "utf-8").trim();
 const input2 = fs.readFileSync("input_full", "utf-8").trim();
 
+// [from; to]
 type Interval = [number, number];
 
 function parseIntervals(input: string): Interval[] {
@@ -30,10 +31,14 @@ function intervalsTotalSize(intervals: Interval[]) {
   return intervals.reduce((sum, current) => sum + intervalSize(current), 0);
 }
 
+// Super ugly data structure: I'm solving both parts at the same time
+// because I'm too lazy to make this pretty/cover both cases at the same time with parameters
 type SearchAux = {
+  // L1 cache: fast to insert and read. Limited in size:
   seen: Set<string>;
   seenArr: number[];
   seenPt2: Set<string>;
+  seenArrPt2: number[];
   min: number;
   max: number;
   minLength: number;
@@ -41,17 +46,15 @@ type SearchAux = {
 };
 
 function initSearch(interval: Interval): SearchAux {
-  let minLength = String(interval[0]).length;
-  let maxLength = String(interval[1]).length;
-
   return {
     seen: new Set<string>(),
     seenArr: [],
     seenPt2: new Set<string>(),
+    seenArrPt2: [],
     min: interval[0],
     max: interval[1],
-    minLength: minLength,
-    maxLength: maxLength,
+    minLength: String(interval[0]).length,
+    maxLength: String(interval[1]).length,
   };
 }
 
@@ -70,16 +73,55 @@ function fitsInterval(current: string, search: SearchAux): number | null {
   return null;
 }
 
-function heapPush(arr: number[], item: number) {
-  let insertIx = binSearchIx(arr, item);
-  if (item !== arr[insertIx]) {
-    arr.splice(insertIx, 0, item);
+function binSearch(arr: number[], item: number): boolean {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (arr[mid] < item) {
+      lo = mid + 1;
+    } else if (arr[mid] === item) {
+      return true;
+    } else {
+      hi = mid;
+    }
   }
+  return item === arr[lo];
 }
 
-function binSearch(arr: number[], item: number) {
-  let insertIx = binSearchIx(arr, item);
-  return item === arr[insertIx];
+function remember(
+  number: number,
+  numberAsString: string,
+  search: SearchAux,
+  isPart2: boolean = false,
+) {
+  const targetSet = isPart2 ? search.seenPt2 : search.seen;
+  const targetArr = isPart2 ? search.seenArrPt2 : search.seenArr;
+  try {
+    if (!binSearch(targetArr, number)) {
+      targetSet.add(numberAsString);
+    }
+  } catch (e) {
+    // range error
+    let start = performance.now();
+    // try getting rid of garbage values ASAP. Duplicate code though
+    if (isPart2) {
+      search.seenArrPt2 = targetArr.concat(Array.from(targetSet).map(parseInt));
+      search.seenArrPt2.sort((n1, n2) => n1 - n2);
+    } else {
+      search.seenArr = targetArr.concat(Array.from(targetSet).map(parseInt));
+      search.seenArr.sort((n1, n2) => n1 - n2);
+    }
+    let end = performance.now();
+    if (isPart2) {
+      search.seenPt2 = new Set<string>();
+    } else {
+      search.seen = new Set<string>();
+    }
+    console.log(
+      `dump cache(${search.seenArr.length}): done in ${end - start}ms`,
+    );
+  }
 }
 
 function fitByRepeating(current: string, search: SearchAux) {
@@ -88,50 +130,26 @@ function fitByRepeating(current: string, search: SearchAux) {
   let tmpRepeated = current + current;
   let parsedOrNull = fitsInterval(tmpRepeated, search);
   if (parsedOrNull !== null) {
-    // heapPush(search.seenArr, parsedOrNull);
-    try {
-      if (!binSearch(search.seenArr, parsedOrNull)) {
-        search.seen.add(tmpRepeated);
-      }
-    } catch (e) {
-      // range error
-      let start = performance.now();
-      search.seenArr = search.seenArr.concat(
-        Array.from(search.seen).map(parseInt),
-      );
-      search.seenArr.sort((n1, n2) => n1 - n2);
-      let end = performance.now();
-      search.seen = new Set<string>();
-      console.log(
-        `dump cache(${search.seenArr.length}): done in ${end - start}ms`,
-      );
-    }
-    // search.seenPt2.add(tmpRepeated);
-    // console.log("fit by repeating found: ", current);
-  } else {
-    return;
+    remember(parsedOrNull, tmpRepeated, search, false);
+    remember(parsedOrNull, tmpRepeated, search, true);
   }
 
-  // while (tmpRepeated.length < search.minLength) {
-  //   tmpRepeated += current;
-  // }
-  // console.log("debug val:", tmpRepeated);
+  // Part 2: accumulate 2+ vals
+  while (tmpRepeated.length < search.minLength) {
+    tmpRepeated += current;
+  }
 
-  // while (tmpRepeated.length <= search.maxLength) {
-  //   if (fitsInterval(tmpRepeated, search)) {
-  //     search.seenPt2.add(tmpRepeated);
-  //     // console.log("fit by repeating found: ", current);
-  //   } else {
-  //     // console.log("not in interval: ", tmpRepeated);
-  //   }
-  //   tmpRepeated += current;
-  // }
+  while (tmpRepeated.length <= search.maxLength) {
+    parsedOrNull = fitsInterval(tmpRepeated, search);
+    if (parsedOrNull !== null) {
+      remember(parsedOrNull, tmpRepeated, search, true);
+    }
+    tmpRepeated += current;
+  }
 }
 
 function numberGen(current: string, search: SearchAux) {
-  // console.log("numberGen. current: ", current);
   if (1 + current.length > search.maxLength / 2) {
-    // if (current.length > search.maxLength / 2) {
     return;
   }
 
@@ -156,15 +174,11 @@ function numberGenInit(interval: Interval): SearchAux {
     digitTo = maxDigit;
   }
 
-  // console.log("interval: ", interval);
-  // console.log("digitRange: ", [digitFrom, digitTo]);
   for (let digit = digitFrom; digit <= digitTo; digit++) {
-    // console.log("at root. digit: ", digit);
     let digitStr = String(digit);
     numberGen(digitStr, search);
     fitByRepeating(digitStr, search);
   }
-  // console.log("search: ", search);
   return search;
 }
 
@@ -190,17 +204,15 @@ function sum2dArray(m: number[][]): number {
     }
   }
   return sum;
-
-  // return m.reduce((sum, cur) => sum + cur.reduce((x, y) => x + y, 0), 0);
 }
 
 function searchToSum(search: SearchAux): [number, number] {
   let sum = 0;
-  // search.seen.forEach((num) => (sum += parseInt(num)));
+  search.seen.forEach((num) => (sum += parseInt(num)));
   search.seenArr.forEach((num) => (sum += num));
   let sum2 = 0;
   search.seenPt2.forEach((num) => (sum2 += parseInt(num)));
-  // search.seenArr.forEach((num) => (sum += num));
+  search.seenArrPt2.forEach((num) => (sum += num));
   return [sum, sum2];
 }
 
@@ -217,19 +229,10 @@ function solveInput(input: string): [number, number] {
     pt2Sum += curSum[1];
   }
   return [pt1Sum, pt2Sum];
-
-  // let result = searches.reduce(
-  //   (sum, cur) => {
-  //     let a = searchToSum(cur);
-  //     return [sum[0] + a[0], sum[1] + a[1]];
-  //   },
-  //   [0, 0],
-  // );
-
-  // return result as [number, number];
 }
 
 function main() {
+  console.log("Solution: ");
   let start = performance.now();
   console.log(solveInput(input1));
   console.log(solveInput(input2));
@@ -237,6 +240,7 @@ function main() {
 
   console.log(`took ${end - start} ms`);
 
+  console.log("Bruteforce solution for part 1:");
   start = performance.now();
   let bfResult = parseIntervals(input1).map(bruteForceSearch);
   console.log(sum2dArray(bfResult));
@@ -247,26 +251,23 @@ function main() {
   console.log(`took ${end - start} ms`);
 }
 
-function binSearchIx(arr: number[], x: number): number {
-  let lo = 0;
-  let hi = arr.length;
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (arr[mid] < x) {
-      lo = mid + 1;
-    } else {
-      hi = mid;
-    }
-  }
-  return lo;
-}
-
-function main2() {
+function performanceCsvChart() {
   const target = Number.MAX_SAFE_INTEGER; // 9007199254740990
+  const start = 1; //  Math.round(target * 0.7)
   const timeLimit = 1000 * 60 * 10;
-  let fuseBlown = true; // false;
+
+  // Safety fuse: put a time limit on brute-force method. After it breaks, continue counting
+  // with the faster method as long as possible.
+  let fuseBlown = false;
+
+  //csv header
+  // i - iteration
+  // progress - % of where we are in relevance to target
+  // numcount - amount of palindrome numbers in the interval
+  // bftime - brute force time, ms
+  // mytime - fast(er) algo time, ms
   console.log("i,progress,numcount,bftime,mytime");
-  for (let i = 1; i < target; i = Math.ceil(i * 1.3)) {
+  for (let i = start; i < target; i = Math.ceil(i * 1.3)) {
     let interval: Interval = [1, i];
     let start = performance.now();
     if (!fuseBlown) {
@@ -281,20 +282,20 @@ function main2() {
       fuseBlown = true;
     }
 
-    // const numCount = Math.max(searches.seenArr.length, searches.seen.size)
     const numCount = searches.seenArr.length + searches.seen.size;
+
+    // Super dumb way to transform 0.31415 -> 31.41%
+    const roundedProgress = Math.round((10000 * i) / target) / 100;
     console.log(
-      `${i},${Math.round((10000 * i) / target) / 100},${numCount},${fuseBlown ? "" : end - start},${end2 - end}`,
+      `${i},${roundedProgress},${numCount},${fuseBlown ? "" : end - start},${end2 - end}`,
     );
+
+    // fast method is too slow - stop evaulating. Kind of like a second fuse.
     if (end2 - end > timeLimit) {
       break;
     }
-
-    // console.log(
-    //   `${i} (${Math.round((10000 * i) / target) / 100}%) took ${end - start}ms`,
-    // );
   }
 }
 
-// main();
-main2();
+main();
+performanceCsvChart();
