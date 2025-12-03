@@ -34,11 +34,15 @@ function intervalsTotalSize(intervals: Interval[]) {
 // Super ugly data structure: I'm solving both parts at the same time
 // because I'm too lazy to make this pretty/cover both cases at the same time with parameters
 type SearchAux = {
-  // L1 cache: fast to insert and read. Limited in size:
-  seen: Set<string>;
+  // L1 cache: fast to insert and read. Limited in size: 16777216 elements max
+  seen: Set<number>;
+  // L2 cache: slow to insert, relatively fast to look up. Max size limited by heap given to program
   seenArr: number[];
-  seenPt2: Set<string>;
+  // Same as before, but dedicated for Pt2. Note that this more than doubles used memory
+  seenPt2: Set<number>;
   seenArrPt2: number[];
+
+  // int and string ranges for the interval
   min: number;
   max: number;
   minLength: number;
@@ -47,9 +51,9 @@ type SearchAux = {
 
 function initSearch(interval: Interval): SearchAux {
   return {
-    seen: new Set<string>(),
+    seen: new Set<number>(),
     seenArr: [],
-    seenPt2: new Set<string>(),
+    seenPt2: new Set<number>(),
     seenArrPt2: [],
     min: interval[0],
     max: interval[1],
@@ -89,38 +93,36 @@ function binSearch(arr: number[], item: number): boolean {
   return item === arr[lo];
 }
 
-function remember(
-  number: number,
-  numberAsString: string,
-  search: SearchAux,
-  isPart2: boolean = false,
-) {
+function remember(number: number, search: SearchAux, isPart2: boolean = false) {
   const targetSet = isPart2 ? search.seenPt2 : search.seen;
   const targetArr = isPart2 ? search.seenArrPt2 : search.seenArr;
   try {
     if (!binSearch(targetArr, number)) {
-      targetSet.add(numberAsString);
+      targetSet.add(number);
     }
   } catch (e) {
     // range error
     let start = performance.now();
     // try getting rid of garbage values ASAP. Duplicate code though
     if (isPart2) {
-      search.seenArrPt2 = targetArr.concat(Array.from(targetSet).map(parseInt));
+      search.seenArrPt2 = targetArr.concat(Array.from(targetSet));
       search.seenArrPt2.sort((n1, n2) => n1 - n2);
     } else {
-      search.seenArr = targetArr.concat(Array.from(targetSet).map(parseInt));
+      search.seenArr = targetArr.concat(Array.from(targetSet));
       search.seenArr.sort((n1, n2) => n1 - n2);
     }
     let end = performance.now();
     if (isPart2) {
-      search.seenPt2 = new Set<string>();
+      search.seenPt2 = new Set<number>();
+      console.log(
+        `dump cache(${search.seenArrPt2.length}): done in ${end - start}ms`,
+      );
     } else {
-      search.seen = new Set<string>();
+      search.seen = new Set<number>();
+      console.log(
+        `dump cache(${search.seenArr.length}): done in ${end - start}ms`,
+      );
     }
-    console.log(
-      `dump cache(${search.seenArr.length}): done in ${end - start}ms`,
-    );
   }
 }
 
@@ -130,8 +132,8 @@ function fitByRepeating(current: string, search: SearchAux) {
   let tmpRepeated = current + current;
   let parsedOrNull = fitsInterval(tmpRepeated, search);
   if (parsedOrNull !== null) {
-    remember(parsedOrNull, tmpRepeated, search, false);
-    remember(parsedOrNull, tmpRepeated, search, true);
+    remember(parsedOrNull, search, false);
+    remember(parsedOrNull, search, true);
   }
 
   // Part 2: accumulate 2+ vals
@@ -142,7 +144,7 @@ function fitByRepeating(current: string, search: SearchAux) {
   while (tmpRepeated.length <= search.maxLength) {
     parsedOrNull = fitsInterval(tmpRepeated, search);
     if (parsedOrNull !== null) {
-      remember(parsedOrNull, tmpRepeated, search, true);
+      remember(parsedOrNull, search, true);
     }
     tmpRepeated += current;
   }
@@ -208,11 +210,11 @@ function sum2dArray(m: number[][]): number {
 
 function searchToSum(search: SearchAux): [number, number] {
   let sum = 0;
-  search.seen.forEach((num) => (sum += parseInt(num)));
+  search.seen.forEach((num) => (sum += num));
   search.seenArr.forEach((num) => (sum += num));
   let sum2 = 0;
-  search.seenPt2.forEach((num) => (sum2 += parseInt(num)));
-  search.seenArrPt2.forEach((num) => (sum += num));
+  search.seenPt2.forEach((num) => (sum2 += num));
+  search.seenArrPt2.forEach((num) => (sum2 += num));
   return [sum, sum2];
 }
 
@@ -251,14 +253,53 @@ function main() {
   console.log(`took ${end - start} ms`);
 }
 
+function runCsvIteration(
+  fuseBlown: { fuseBlown: boolean; secondFuseBlown: boolean },
+  timeLimit: number,
+  i: number,
+  target: number,
+) {
+  let interval: Interval = [1, i];
+  let start = performance.now();
+  if (!fuseBlown.fuseBlown) {
+    bruteForceSearch(interval);
+  }
+  let end = performance.now();
+  let searches = numberGenInit(interval);
+  let end2 = performance.now();
+
+  if (end - start > timeLimit) {
+    // slow method is too slow - blow it up
+    fuseBlown.fuseBlown = true;
+  }
+
+  const numCount = searches.seenArr.length + searches.seen.size;
+  const numCountPt2 = searches.seenArrPt2.length + searches.seenPt2.size;
+
+  // Super dumb way to transform 0.31415 -> 31.41%
+  const roundedProgress = Math.round((10000 * i) / target) / 100;
+  console.log(
+    `${i},${roundedProgress},${numCount},${numCountPt2},${fuseBlown ? "" : end - start},${end2 - end}`,
+  );
+
+  // fast method is too slow - stop evaulating. Kind of like a second fuse.
+  if (end2 - end > timeLimit) {
+    fuseBlown.secondFuseBlown = true;
+  }
+}
+
 function performanceCsvChart() {
+  // NB: If trying to solve pt2, it can go over heap memory limit, need to set
+  // increased heap size like this:
+  // NODE_OPTIONS=--max-old-space-size=8192 npx ts-node t2.ts
   const target = Number.MAX_SAFE_INTEGER; // 9007199254740990
   const start = 1; //  Math.round(target * 0.7)
+  // const start = target - 1; //  Math.round(target * 0.7)
   const timeLimit = 1000 * 60 * 10;
 
   // Safety fuse: put a time limit on brute-force method. After it breaks, continue counting
   // with the faster method as long as possible.
-  let fuseBlown = false;
+  let fuseBlown = { fuseBlown: true, secondFuseBlown: false };
 
   //csv header
   // i - iteration
@@ -266,34 +307,16 @@ function performanceCsvChart() {
   // numcount - amount of palindrome numbers in the interval
   // bftime - brute force time, ms
   // mytime - fast(er) algo time, ms
-  console.log("i,progress,numcount,bftime,mytime");
+  console.log("i,progress,numcount,numcount_2,bftime,mytime");
+
   for (let i = start; i < target; i = Math.ceil(i * 1.3)) {
-    let interval: Interval = [1, i];
-    let start = performance.now();
-    if (!fuseBlown) {
-      bruteForceSearch(interval);
-    }
-    let end = performance.now();
-    let searches = numberGenInit(interval);
-    let end2 = performance.now();
-
-    if (end - start > timeLimit) {
-      // slow method is too slow - blow it up
-      fuseBlown = true;
-    }
-
-    const numCount = searches.seenArr.length + searches.seen.size;
-
-    // Super dumb way to transform 0.31415 -> 31.41%
-    const roundedProgress = Math.round((10000 * i) / target) / 100;
-    console.log(
-      `${i},${roundedProgress},${numCount},${fuseBlown ? "" : end - start},${end2 - end}`,
-    );
-
-    // fast method is too slow - stop evaulating. Kind of like a second fuse.
-    if (end2 - end > timeLimit) {
+    runCsvIteration(fuseBlown, timeLimit, i, target);
+    if (fuseBlown.secondFuseBlown) {
       break;
     }
+  }
+  if (!fuseBlown.secondFuseBlown) {
+    runCsvIteration(fuseBlown, timeLimit, target, target);
   }
 }
 
